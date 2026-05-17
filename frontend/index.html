@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RepoSense — IBM Bob Hackathon</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #0f0f12;
+    --surface: #18181d;
+    --surface2:#22222a;
+    --border:  #2e2e3a;
+    --text:    #e8e8f2;
+    --muted:   #7a7a90;
+    --accent:  #6366f1;
+    --accent2: #4f46e5;
+    --success: #22c55e;
+    --warn:    #f59e0b;
+    --danger:  #ef4444;
+    --info:    #3b82f6;
+    --radius:  10px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ── layout ── */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  header .logo { font-weight: 700; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+  header .badge-hkn {
+    font-size: 11px;
+    background: rgba(99,102,241,.2);
+    color: #a5b4fc;
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-weight: 500;
+  }
+  header .made-by { font-size: 12px; color: var(--muted); }
+
+  main { max-width: 860px; margin: 0 auto; padding: 32px 20px 80px; }
+
+  /* ── hero ── */
+  .hero { text-align: center; margin-bottom: 32px; }
+  .hero h1 { font-size: 36px; font-weight: 800; letter-spacing: -1px; margin-bottom: 10px; }
+  .hero h1 span { color: var(--accent); }
+  .hero p { color: var(--muted); font-size: 15px; max-width: 500px; margin: 0 auto; }
+
+  /* ── search bar ── */
+  .search-bar { display: flex; gap: 8px; margin-bottom: 10px; }
+  .search-bar input {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 14px;
+    padding: 10px 14px;
+    outline: none;
+    transition: border-color .15s;
+  }
+  .search-bar input:focus { border-color: var(--accent); }
+  .search-bar input::placeholder { color: var(--muted); }
+
+  .btn {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s, opacity .15s;
+    white-space: nowrap;
+  }
+  .btn:hover { background: var(--accent2); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-secondary {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { background: var(--border); }
+
+  .examples { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 28px; }
+  .examples button { background: none; border: none; color: var(--info); font-size: 12px; cursor: pointer; text-decoration: underline; padding: 0; }
+  .examples button:hover { color: var(--accent); }
+
+  /* ── token notice ── */
+  .token-notice {
+    background: rgba(245,158,11,.08);
+    border: 1px solid rgba(245,158,11,.3);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    font-size: 12px;
+    color: #fcd34d;
+    margin-bottom: 20px;
+    display: none;
+  }
+  .token-notice code {
+    background: rgba(0,0,0,.3);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-family: monospace;
+  }
+
+  /* ── card ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    margin-bottom: 14px;
+  }
+  .card-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  /* ── stats grid ── */
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+  @media (max-width: 600px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+  .stat-card {
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 14px;
+  }
+  .stat-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .stat-value { font-size: 24px; font-weight: 700; }
+  .stat-value.danger { color: var(--danger); }
+  .stat-value.warn   { color: var(--warn); }
+  .stat-value.ok     { color: var(--success); }
+  .stat-value.info   { color: var(--info); }
+
+  /* ── tabs ── */
+  .tabs { display: flex; gap: 4px; background: var(--surface); border-radius: var(--radius); padding: 4px; margin-bottom: 20px; }
+  .tab-btn {
+    flex: 1;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 8px 12px;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .tab-btn.active { background: var(--accent); color: #fff; }
+  .tab-btn:hover:not(.active) { background: var(--surface2); color: var(--text); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ── file tree ── */
+  .file-tree { font-family: 'SF Mono', 'Consolas', monospace; font-size: 12px; max-height: 420px; overflow-y: auto; }
+  .tree-row { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border-radius: 4px; }
+  .tree-row:hover { background: var(--surface2); }
+  .tree-icon { font-size: 13px; flex-shrink: 0; }
+  .tree-name { color: var(--muted); }
+  .tree-name.dir { color: var(--text); font-weight: 600; }
+  .badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 999px;
+    flex-shrink: 0;
+  }
+  .badge-entry    { background: rgba(59,130,246,.2);  color: #93c5fd; }
+  .badge-critical { background: rgba(239,68,68,.2);   color: #fca5a5; }
+  .badge-security { background: rgba(245,158,11,.2);  color: #fcd34d; }
+  .badge-test     { background: rgba(34,197,94,.2);   color: #86efac; }
+
+  /* ── impact rows ── */
+  .impact-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+  .impact-row:last-child { border-bottom: none; }
+  .impact-path { flex: 1; font-family: monospace; font-size: 12px; color: var(--text); word-break: break-all; }
+  .impact-hops { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .pill { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  .pill-high   { background: rgba(239,68,68,.2);   color: #fca5a5; }
+  .pill-medium { background: rgba(245,158,11,.2);  color: #fcd34d; }
+  .pill-low    { background: rgba(34,197,94,.2);   color: #86efac; }
+
+  /* ── bar ── */
+  .bar-wrap { width: 60px; height: 5px; background: var(--surface2); border-radius: 3px; flex-shrink: 0; }
+  .bar-fill { height: 100%; border-radius: 3px; }
+
+  /* ── guide sections ── */
+  .guide-section { margin-bottom: 20px; }
+  .guide-section h3 { font-size: 14px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .guide-section p, .guide-section li { font-size: 13px; color: var(--muted); line-height: 1.7; }
+  .guide-section ul, .guide-section ol { padding-left: 18px; }
+  .guide-section li { margin-bottom: 4px; }
+  .guide-section code {
+    font-family: monospace;
+    font-size: 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 1px 5px;
+    border-radius: 4px;
+    color: var(--text);
+  }
+  .dir-pill {
+    display: inline-block;
+    font-family: monospace;
+    font-size: 11px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 2px 8px;
+    border-radius: 5px;
+    color: var(--muted);
+    margin: 2px;
+  }
+  .readme-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    font-size: 12px;
+    font-family: monospace;
+    color: var(--muted);
+    white-space: pre-wrap;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  /* ── spinner / states ── */
+  .spinner {
+    display: inline-block;
+    width: 16px; height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading-row { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; padding: 12px 0; }
+  .error-box {
+    background: rgba(239,68,68,.08);
+    border: 1px solid rgba(239,68,68,.3);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    color: #fca5a5;
+    font-size: 13px;
+    margin-bottom: 14px;
+  }
+  .empty-state { text-align: center; padding: 40px; color: var(--muted); font-size: 13px; }
+  .empty-state .big { font-size: 32px; margin-bottom: 8px; }
+
+  /* ── repo header ── */
+  .repo-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+  .repo-name { font-family: monospace; font-size: 16px; font-weight: 700; color: var(--accent); }
+  .lang-badge {
+    font-size: 11px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: rgba(99,102,241,.15);
+    color: #a5b4fc;
+    font-weight: 600;
+  }
+
+  /* ── impact file select ── */
+  .file-select-row { display: flex; gap: 8px; }
+  select {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 13px;
+    padding: 9px 12px;
+    outline: none;
+    font-family: monospace;
+    cursor: pointer;
+  }
+  select:focus { border-color: var(--accent); }
+  option { background: var(--surface); }
+
+  /* ── footer ── */
+  footer {
+    text-align: center;
+    padding: 24px;
+    color: var(--muted);
+    font-size: 12px;
+    border-top: 1px solid var(--border);
+    margin-top: 40px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    🔬 RepoSense
+    <span class="badge-hkn">IBM Bob Hackathon</span>
+  </div>
+  <span class="made-by">Built with IBM Bob · lablab.ai</span>
+</header>
+
+<main>
+  <!-- Hero -->
+  <div class="hero" id="hero">
+    <h1>Understand any codebase<br><span>in seconds</span></h1>
+    <p>Paste a GitHub repo URL. RepoSense maps the structure, traces change impact, and writes an onboarding guide — powered by IBM Bob's full-repo context.</p>
+  </div>
+
+  <!-- Token notice (shown on rate limit) -->
+  <div class="token-notice" id="token-notice">
+    ⚠ GitHub rate limit hit (60 req/hour for unauthenticated). To fix: open <code>frontend/index.html</code>, find <code>GITHUB_TOKEN</code> near the top of the script, and paste your GitHub Personal Access Token there. Or set <code>GITHUB_TOKEN=your_token</code> in the backend environment.
+  </div>
+
+  <!-- Search -->
+  <div class="search-bar">
+    <input type="text" id="repo-input" placeholder="https://github.com/owner/repo"
+      value="https://github.com/tiangolo/fastapi" />
+    <button class="btn" id="analyze-btn" onclick="doAnalyze()">Analyze →</button>
+  </div>
+
+  <div class="examples">
+    <span>Try:</span>
+    <button onclick="setUrl('https://github.com/tiangolo/fastapi')">tiangolo/fastapi</button>
+    <button onclick="setUrl('https://github.com/pallets/flask')">pallets/flask</button>
+    <button onclick="setUrl('https://github.com/django/django')">django/django</button>
+    <button onclick="setUrl('https://github.com/psf/requests')">psf/requests</button>
+  </div>
+
+  <!-- Error -->
+  <div class="error-box" id="error-box" style="display:none"></div>
+
+  <!-- Loading -->
+  <div class="loading-row" id="loading-row" style="display:none">
+    <div class="spinner"></div>
+    <span id="loading-msg">Fetching repository…</span>
+  </div>
+
+  <!-- Main results -->
+  <div id="results" style="display:none">
+
+    <div class="repo-header">
+      <span class="repo-name" id="rh-name"></span>
+      <span class="lang-badge" id="rh-lang" style="display:none"></span>
+      <span class="badge badge-entry" id="rh-stars" style="background:rgba(245,158,11,.15);color:#fcd34d"></span>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('map',this)">🗺 Codebase map</button>
+      <button class="tab-btn" onclick="switchTab('impact',this)">🔥 Impact analysis</button>
+      <button class="tab-btn" onclick="switchTab('guide',this)">📖 Onboarding guide</button>
+    </div>
+
+    <!-- TAB: Map -->
+    <div class="tab-panel active" id="tab-map">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Total files</div><div class="stat-value" id="s-total">—</div></div>
+        <div class="stat-card"><div class="stat-label">Python files</div><div class="stat-value info" id="s-py">—</div></div>
+        <div class="stat-card"><div class="stat-label">★ Stars</div><div class="stat-value warn" id="s-stars">—</div></div>
+        <div class="stat-card"><div class="stat-label">Forks</div><div class="stat-value" id="s-forks">—</div></div>
+      </div>
+      <div id="desc-card" class="card" style="display:none">
+        <div class="card-title">Description</div>
+        <p id="repo-desc" style="font-size:13px;color:var(--muted)"></p>
+      </div>
+      <div class="card">
+        <div class="card-title">File structure</div>
+        <div class="file-tree" id="file-tree"></div>
+      </div>
+    </div>
+
+    <!-- TAB: Impact -->
+    <div class="tab-panel" id="tab-impact">
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-title">Select file to change</div>
+        <div class="file-select-row">
+          <select id="file-select"></select>
+          <button class="btn" onclick="doImpact()">Run analysis →</button>
+        </div>
+      </div>
+
+      <div class="loading-row" id="impact-loading" style="display:none">
+        <div class="spinner"></div>
+        <span>Building import graph and tracing blast radius…</span>
+      </div>
+      <div class="error-box" id="impact-error" style="display:none"></div>
+
+      <div id="impact-results" style="display:none">
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-label">Files affected</div><div class="stat-value danger" id="i-files">—</div></div>
+          <div class="stat-card"><div class="stat-label">Tests at risk</div><div class="stat-value warn" id="i-tests">—</div></div>
+          <div class="stat-card"><div class="stat-label">Direct imports</div><div class="stat-value" id="i-imports">—</div></div>
+          <div class="stat-card"><div class="stat-label">Risk score</div><div class="stat-value" id="i-risk">—</div></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Blast radius — affected files</div>
+          <div id="impact-list"></div>
+        </div>
+      </div>
+
+      <div class="empty-state" id="impact-empty">
+        <div class="big">🎯</div>
+        Select a file above and click "Run analysis" to trace its blast radius
+      </div>
+    </div>
+
+    <!-- TAB: Guide -->
+    <div class="tab-panel" id="tab-guide">
+      <div class="empty-state" id="guide-empty">
+        <div class="big">📖</div>
+        <p style="margin-bottom:14px">Auto-generate an onboarding guide from the repo's structure and README</p>
+        <button class="btn" onclick="doGuide()">Generate guide →</button>
+      </div>
+
+      <div class="loading-row" id="guide-loading" style="display:none">
+        <div class="spinner"></div>
+        <span>Reading README and generating guide…</span>
+      </div>
+      <div class="error-box" id="guide-error" style="display:none"></div>
+
+      <div id="guide-content" style="display:none"></div>
+    </div>
+
+  </div><!-- /results -->
+</main>
+
+<footer>
+  RepoSense · IBM Bob Hackathon · lablab.ai · May 2026
+</footer>
+
+<script>
+// ── Config ──────────────────────────────────────────────────────────────────
+const API = 'http://localhost:8000';
+
+// ── State ───────────────────────────────────────────────────────────────────
+let currentRepoUrl = '';
+let currentPyFiles = [];
+
+// ── Utils ───────────────────────────────────────────────────────────────────
+function setUrl(url) {
+  document.getElementById('repo-input').value = url;
+}
+
+function show(id) { document.getElementById(id).style.display = ''; }
+function hide(id) { document.getElementById(id).style.display = 'none'; }
+function showBlock(id) { document.getElementById(id).style.display = 'block'; }
+function showFlex(id) { document.getElementById(id).style.display = 'flex'; }
+function text(id, val) { document.getElementById(id).textContent = val; }
+
+function setError(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function clearError(id) { hide(id); }
+
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+// ── API calls ────────────────────────────────────────────────────────────────
+async function apiFetch(endpoint, body) {
+  const resp = await fetch(API + endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await resp.json();
+  if (!resp.ok) {
+    const msg = data.detail || `HTTP ${resp.status}`;
+    if (resp.status === 403 || msg.toLowerCase().includes('rate limit')) {
+      document.getElementById('token-notice').style.display = 'block';
+    }
+    throw new Error(msg);
+  }
+  return data;
+}
+
+// ── Analyze ──────────────────────────────────────────────────────────────────
+async function doAnalyze() {
+  const url = document.getElementById('repo-input').value.trim();
+  if (!url) return;
+
+  currentRepoUrl = url;
+  currentPyFiles = [];
+
+  hide('results');
+  clearError('error-box');
+  hide('token-notice');
+  showFlex('loading-row');
+  text('loading-msg', 'Fetching repository from GitHub…');
+  document.getElementById('analyze-btn').disabled = true;
+  document.getElementById('hero').style.display = 'none';
+
+  // Reset impact/guide panels
+  hide('impact-results');
+  hide('guide-content');
+  hide('guide-error');
+  hide('impact-error');
+  showBlock('impact-empty');
+  showBlock('guide-empty');
+
+  try {
+    const data = await apiFetch('/analyze', { repo_url: url });
+    renderAnalyze(data, url);
+  } catch (e) {
+    setError('error-box', '⚠ ' + e.message);
+    document.getElementById('hero').style.display = '';
+  } finally {
+    hide('loading-row');
+    document.getElementById('analyze-btn').disabled = false;
+  }
+}
+
+function renderAnalyze(data, url) {
+  // Repo header
+  text('rh-name', data.owner + '/' + data.repo);
+  if (data.language) {
+    text('rh-lang', data.language);
+    show('rh-lang');
+  } else { hide('rh-lang'); }
+  text('rh-stars', '★ ' + data.stars.toLocaleString());
+
+  // Stats
+  text('s-total', data.total_files);
+  text('s-py', data.python_files);
+  text('s-stars', data.stars.toLocaleString());
+  text('s-forks', data.forks.toLocaleString());
+
+  // Description
+  if (data.description) {
+    text('repo-desc', data.description);
+    showBlock('desc-card');
+  } else { hide('desc-card'); }
+
+  // File tree
+  const tree = document.getElementById('file-tree');
+  const tagMap = { entry:'badge-entry', critical:'badge-critical', security:'badge-security', test:'badge-test' };
+  tree.innerHTML = data.tree.slice(0, 200).map(f => {
+    const depth = f.path.split('/').length - 1;
+    const name  = f.path.split('/').pop();
+    const isDir = f.type === 'dir';
+    const icon  = isDir ? '📁' : '📄';
+    const badgeClass = tagMap[f.tag];
+    const badge = badgeClass ? `<span class="badge ${badgeClass}">${f.tag}</span>` : '';
+    return `<div class="tree-row" style="padding-left:${depth * 16 + 4}px">
+      <span class="tree-icon">${icon}</span>
+      <span class="tree-name${isDir ? ' dir' : ''}">${name}</span>
+      ${badge}
+    </div>`;
+  }).join('');
+
+  // Build Python file list for impact tab
+  currentPyFiles = data.tree
+    .filter(f => f.type === 'file' && f.path.endsWith('.py'))
+    .map(f => f.path);
+
+  const sel = document.getElementById('file-select');
+  sel.innerHTML = currentPyFiles.map(p => `<option value="${p}">${p}</option>`).join('');
+
+  showBlock('results');
+}
+
+// ── Impact ───────────────────────────────────────────────────────────────────
+async function doImpact() {
+  const filePath = document.getElementById('file-select').value;
+  if (!filePath) return;
+
+  hide('impact-results');
+  hide('impact-empty');
+  clearError('impact-error');
+  showFlex('impact-loading');
+
+  try {
+    const data = await apiFetch('/impact', { repo_url: currentRepoUrl, file_path: filePath });
+    renderImpact(data);
+  } catch (e) {
+    setError('impact-error', '⚠ ' + e.message);
+    showBlock('impact-empty');
+  } finally {
+    hide('impact-loading');
+  }
+}
+
+function renderImpact(data) {
+  text('i-files', data.affected_count);
+  text('i-tests', data.test_count);
+  text('i-imports', data.direct_imports);
+
+  const riskEl = document.getElementById('i-risk');
+  riskEl.textContent = data.risk;
+  riskEl.className = 'stat-value ' +
+    (data.risk === 'High' ? 'danger' : data.risk === 'Medium' ? 'warn' : 'ok');
+
+  const barColor = { high:'#ef4444', medium:'#f59e0b', low:'#22c55e' };
+  const list = document.getElementById('impact-list');
+  if (data.affected_files.length === 0) {
+    list.innerHTML = '<p style="color:var(--muted);font-size:13px;padding:8px 0">No affected files found — this file may not be imported by others.</p>';
+  } else {
+    list.innerHTML = data.affected_files.map(f => `
+      <div class="impact-row">
+        <span class="impact-path">${f.path}</span>
+        <span class="impact-hops">${f.hops} hop${f.hops !== 1 ? 's' : ''}</span>
+        <div class="bar-wrap">
+          <div class="bar-fill" style="width:${Math.max(10, 100 - f.hops * 30)}%;background:${barColor[f.level]}"></div>
+        </div>
+        <span class="pill pill-${f.level}">${f.level}</span>
+      </div>
+    `).join('');
+  }
+
+  hide('impact-empty');
+  showBlock('impact-results');
+}
+
+// ── Guide ─────────────────────────────────────────────────────────────────────
+async function doGuide() {
+  hide('guide-empty');
+  clearError('guide-error');
+  showFlex('guide-loading');
+
+  try {
+    const data = await apiFetch('/guide', { repo_url: currentRepoUrl });
+    renderGuide(data);
+  } catch (e) {
+    setError('guide-error', '⚠ ' + e.message);
+    showBlock('guide-empty');
+  } finally {
+    hide('guide-loading');
+  }
+}
+
+function renderGuide(data) {
+  const c = document.getElementById('guide-content');
+  c.innerHTML = `
+    <div class="card">
+      <div class="guide-section">
+        <h3>🏗 Architecture overview</h3>
+        <p>${data.description}</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+          ${data.language ? `<span class="lang-badge">${data.language}</span>` : ''}
+          <span class="lang-badge" style="background:rgba(245,158,11,.15);color:#fcd34d">★ ${data.stars.toLocaleString()}</span>
+          <span class="lang-badge" style="background:rgba(99,102,241,.12);color:#a5b4fc">${data.forks} forks</span>
+          <span class="lang-badge" style="background:rgba(59,130,246,.12);color:#93c5fd">${data.total_python_files} py files</span>
+        </div>
+      </div>
+
+      <div class="guide-section">
+        <h3>📁 Top-level directories</h3>
+        <div>${data.top_directories.map(d => `<span class="dir-pill">${d}/</span>`).join('')}</div>
+      </div>
+
+      ${data.entry_points.length ? `
+      <div class="guide-section">
+        <h3>🚀 Entry points — start here</h3>
+        <ul>${data.entry_points.map(e => `<li><code>${e}</code></li>`).join('')}</ul>
+      </div>` : ''}
+
+      <div class="guide-section">
+        <h3>⚙ Getting started</h3>
+        <ol>
+          <li>git clone https://github.com/${data.repo}</li>
+          <li>cd ${data.repo.split('/')[1]}</li>
+          ${data.setup_commands.map(cmd => `<li><code>${cmd}</code></li>`).join('')}
+          ${data.test_command !== 'No tests detected' ? `<li>Run tests: <code>${data.test_command}</code></li>` : ''}
+        </ol>
+      </div>
+
+      <div class="guide-section">
+        <h3>⚠ Key things to know</h3>
+        <ul>
+          <li>This repo has <strong>${data.total_python_files}</strong> Python files — start with the entry points above</li>
+          <li>Run tests before making any changes to establish a working baseline</li>
+          <li>Check <code>pyproject.toml</code> or <code>setup.cfg</code> for project-level configuration</li>
+          ${data.test_command !== 'No tests detected' ? '<li>Test suite is present — run it frequently to catch regressions</li>' : '<li>No test suite detected — add tests before contributing</li>'}
+        </ul>
+      </div>
+
+      ${data.readme_snippet && data.readme_snippet !== 'No README found.' ? `
+      <div class="guide-section" style="margin-bottom:0">
+        <h3>📄 README excerpt</h3>
+        <div class="readme-box">${escHtml(data.readme_snippet)}</div>
+      </div>` : ''}
+    </div>
+  `;
+  showBlock('guide-content');
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Enter key ─────────────────────────────────────────────────────────────────
+document.getElementById('repo-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doAnalyze();
+});
+</script>
+</body>
+</html>

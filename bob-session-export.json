@@ -1,0 +1,41 @@
+{
+  "export_version": "1.0",
+  "tool": "IBM Bob",
+  "project": "RepoSense",
+  "hackathon": "IBM Bob Hackathon · lablab.ai · May 2026",
+  "note": "Replace this with your actual IBM Bob VS Code session export before submitting.",
+  "sessions": [
+    {
+      "session_id": "001",
+      "title": "AST import graph design",
+      "mode": "Architect",
+      "summary": "Designed the Python AST traversal to extract import statements and build a directed import graph. Reasoned through edge cases: relative imports, aliased modules, wildcard imports.",
+      "files": ["backend/main.py"],
+      "outputs": ["extract_imports()", "build_graphs()", "module name → file path lookup"]
+    },
+    {
+      "session_id": "002",
+      "title": "BFS blast-radius algorithm",
+      "mode": "Developer",
+      "summary": "Implemented BFS through the reverse import graph to trace which files are affected by a change. Added hop-distance scoring and risk label heuristics.",
+      "files": ["backend/main.py"],
+      "outputs": ["bfs()", "risk_label()", "hop-distance based level assignment"]
+    },
+    {
+      "session_id": "003",
+      "title": "FastAPI endpoint review",
+      "mode": "Reviewer",
+      "summary": "Bob reviewed async httpx usage, rate limit detection, and CORS configuration. Suggested asyncio.gather for parallel GitHub API calls.",
+      "files": ["backend/main.py"],
+      "outputs": ["asyncio.gather pattern", "GITHUB_TOKEN env var support", "user-friendly rate limit error"]
+    },
+    {
+      "session_id": "004",
+      "title": "Frontend UI architecture",
+      "mode": "Developer",
+      "summary": "Designed the single-file no-build frontend. Bob suggested vanilla JS over React to eliminate the build step for the hackathon demo.",
+      "files": ["frontend/index.html"],
+      "outputs": ["tab system", "renderAnalyze/Impact/Guide pattern", "dynamic file select population"]
+    }
+  ]
+}
