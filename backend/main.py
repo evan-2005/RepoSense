@@ -2,7 +2,7 @@ import os
 import ast
 import base64
 import asyncio
-from collections import defaultdict
+from collections import defaultdict, deque
 
 import httpx
 from fastapi import FastAPI, HTTPException
@@ -67,9 +67,12 @@ async def gh_get(client: httpx.AsyncClient, path: str):
     return resp.json()
 
 
-async def fetch_tree(client: httpx.AsyncClient, owner: str, repo: str) -> list[dict]:
+async def fetch_tree(client: httpx.AsyncClient, owner: str, repo: str, branch: str = "HEAD") -> list[dict]:
     """Fetch the entire repo file tree in one API call."""
-    data = await gh_get(client, f"/repos/{owner}/{repo}/git/trees/HEAD?recursive=1")
+    data = await gh_get(client, f"/repos/{owner}/{repo}/git/trees/{branch}?recursive=1")
+    if data.get("truncated"):
+        # Tree was truncated by GitHub (repo > 100k items); we still return what we got
+        pass
     return data.get("tree", [])
 
 
@@ -134,9 +137,9 @@ def build_graphs(py_files: list[dict], contents: dict[str, str]):
 def bfs(reverse: dict[str, list[str]], start: str) -> dict[str, int]:
     """BFS through reverse graph; returns {file: hop_distance}."""
     visited: dict[str, int] = {start: 0}
-    queue = [start]
+    queue: deque[str] = deque([start])
     while queue:
-        cur = queue.pop(0)
+        cur = queue.popleft()
         for dep in reverse.get(cur, []):
             if dep not in visited:
                 visited[dep] = visited[cur] + 1
@@ -186,10 +189,9 @@ def health():
 async def analyze(req: RepoRequest):
     owner, repo = parse_repo_url(req.repo_url)
     async with httpx.AsyncClient(timeout=25) as client:
-        meta, tree = await asyncio.gather(
-            gh_get(client, f"/repos/{owner}/{repo}"),
-            fetch_tree(client, owner, repo),
-        )
+        meta = await gh_get(client, f"/repos/{owner}/{repo}")
+        default_branch = meta.get("default_branch") or "main"
+        tree = await fetch_tree(client, owner, repo, default_branch)
 
     all_files = [f for f in tree if f["type"] == "blob"]
     py_files  = [f for f in all_files if f["path"].endswith(".py")]
@@ -226,7 +228,9 @@ async def impact(req: ImpactRequest):
     owner, repo = parse_repo_url(req.repo_url)
 
     async with httpx.AsyncClient(timeout=30) as client:
-        tree = await fetch_tree(client, owner, repo)
+        meta = await gh_get(client, f"/repos/{owner}/{repo}")
+        default_branch = meta.get("default_branch") or "main"
+        tree = await fetch_tree(client, owner, repo, default_branch)
 
         py_files = [
             f for f in tree
@@ -273,10 +277,9 @@ async def guide(req: RepoRequest):
     owner, repo = parse_repo_url(req.repo_url)
 
     async with httpx.AsyncClient(timeout=25) as client:
-        meta, tree = await asyncio.gather(
-            gh_get(client, f"/repos/{owner}/{repo}"),
-            fetch_tree(client, owner, repo),
-        )
+        meta = await gh_get(client, f"/repos/{owner}/{repo}")
+        default_branch = meta.get("default_branch") or "main"
+        tree = await fetch_tree(client, owner, repo, default_branch)
 
         # Try to read README
         readme = ""

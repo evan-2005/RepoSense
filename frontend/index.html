@@ -571,11 +571,11 @@ function renderAnalyze(data, url) {
   const tagMap = { entry:'badge-entry', critical:'badge-critical', security:'badge-security', test:'badge-test' };
   tree.innerHTML = data.tree.slice(0, 200).map(f => {
     const depth = f.path.split('/').length - 1;
-    const name  = f.path.split('/').pop();
+    const name  = escHtml(f.path.split('/').pop());
     const isDir = f.type === 'dir';
     const icon  = isDir ? '📁' : '📄';
     const badgeClass = tagMap[f.tag];
-    const badge = badgeClass ? `<span class="badge ${badgeClass}">${f.tag}</span>` : '';
+    const badge = badgeClass ? `<span class="badge ${badgeClass}">${escHtml(f.tag)}</span>` : '';
     return `<div class="tree-row" style="padding-left:${depth * 16 + 4}px">
       <span class="tree-icon">${icon}</span>
       <span class="tree-name${isDir ? ' dir' : ''}">${name}</span>
@@ -589,7 +589,7 @@ function renderAnalyze(data, url) {
     .map(f => f.path);
 
   const sel = document.getElementById('file-select');
-  sel.innerHTML = currentPyFiles.map(p => `<option value="${p}">${p}</option>`).join('');
+  sel.innerHTML = currentPyFiles.map(p => `<option value="${escHtml(p)}">${escHtml(p)}</option>`).join('');
 
   showBlock('results');
 }
@@ -632,12 +632,12 @@ function renderImpact(data) {
   } else {
     list.innerHTML = data.affected_files.map(f => `
       <div class="impact-row">
-        <span class="impact-path">${f.path}</span>
+        <span class="impact-path">${escHtml(f.path)}</span>
         <span class="impact-hops">${f.hops} hop${f.hops !== 1 ? 's' : ''}</span>
         <div class="bar-wrap">
           <div class="bar-fill" style="width:${Math.max(10, 100 - f.hops * 30)}%;background:${barColor[f.level]}"></div>
         </div>
-        <span class="pill pill-${f.level}">${f.level}</span>
+        <span class="pill pill-${escHtml(f.level)}">${escHtml(f.level)}</span>
       </div>
     `).join('');
   }
@@ -720,7 +720,7 @@ function renderGuide(data) {
 }
 
 function escHtml(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // ── Enter key ─────────────────────────────────────────────────────────────────

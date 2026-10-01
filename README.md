@@ -39,6 +39,9 @@ xdg-open frontend/index.html
 
 Or drag `frontend/index.html` into any browser tab.
 
+> **Windows one-click:** double-click `start.bat`  
+> **Mac/Linux one-click:** run `./start.sh`
+
 ---
 
 ## ⚠️ GitHub Rate Limit
@@ -58,6 +61,10 @@ uvicorn main:app --reload --port 8000
 # Windows PowerShell
 $env:GITHUB_TOKEN="ghp_your_token_here"
 uvicorn main:app --reload --port 8000
+
+# Windows CMD
+set GITHUB_TOKEN=ghp_your_token_here
+uvicorn main:app --reload --port 8000
 ```
 
 ---
@@ -72,6 +79,8 @@ reposense/
 ├── frontend/
 │   └── index.html        # Complete UI — single file, no build needed
 ├── bob-session-export.json
+├── start.bat             # Windows one-click launcher
+├── start.sh              # Mac/Linux one-click launcher
 └── README.md
 ```
 
@@ -79,12 +88,13 @@ reposense/
 
 ## 🛠 How impact analysis works
 
-1. Fetch all `.py` files from GitHub API (up to 50)
-2. Parse each with Python's `ast` module — extract `import` and `from X import` statements
-3. Build a directed graph: `file → [files it imports]`
-4. Reverse it: `file → [files that import IT]`
-5. BFS from the changed file through the reverse graph
-6. Score each affected file by hop distance (1 hop = direct importer → High risk)
+1. Fetch the repo's **default branch** tree via GitHub API
+2. Filter Python files (`.py`), skip files > 60 KB, cap at 50 files to stay within rate limits
+3. Parse each with Python's `ast` module — extract `import` and `from X import` statements
+4. Build a directed graph: `file → [files it imports]`
+5. Reverse it: `file → [files that import IT]`
+6. BFS from the changed file through the reverse graph (O(1) dequeue via `collections.deque`)
+7. Score each affected file by hop distance (1 hop = direct importer → High risk)
 
 ---
 
@@ -99,8 +109,20 @@ POST /guide      { "repo_url": "https://github.com/owner/repo" }
 
 ---
 
+## 🐛 Bug fixes (post-hackathon)
+
+| # | Location | Bug | Fix |
+|---|----------|-----|-----|
+| 1 | `backend/main.py` | `fetch_tree` used hardcoded `HEAD` as tree SHA — GitHub API rejects this for many repos | Now reads `default_branch` from repo metadata and passes it to the tree API |
+| 2 | `backend/main.py` | `bfs()` used `list.pop(0)` — O(n) per dequeue, quadratic slowdown on large repos | Replaced with `collections.deque` + `popleft()` for O(1) performance |
+| 3 | `frontend/index.html` | File paths and tag names injected raw into `innerHTML` — XSS risk | All user-supplied values now escaped via `escHtml()` before injection |
+| 4 | `frontend/index.html` | `escHtml()` didn't escape `"` — quotes in paths could break HTML attributes | Added `"` → `&quot;` and coerced input with `String(s)` |
+
+---
+
 ## 🤖 Built with IBM Bob
 
 IBM Bob was used throughout to design the AST traversal, BFS algorithm, and FastAPI endpoint architecture. See `bob-session-export.json` for the session log.
 
 > **Before submitting:** replace `bob-session-export.json` with your actual IBM Bob VS Code export.
+
