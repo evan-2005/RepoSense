@@ -173,12 +173,19 @@
     transition: all .15s;
   }
   .tab-btn.active { background: var(--accent); color: #fff; }
+  .tab-btn:focus { outline: none; }
+  .tab-btn:focus-visible { outline: 2px solid #a5b4fc; outline-offset: 1px; }
   .tab-btn:hover:not(.active) { background: var(--surface2); color: var(--text); }
   .tab-panel { display: none; }
   .tab-panel.active { display: block; }
 
   /* ── file tree ── */
   .file-tree { font-family: 'SF Mono', 'Consolas', monospace; font-size: 12px; max-height: 420px; overflow-y: auto; }
+  .file-tree, .readme-box { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+  .file-tree::-webkit-scrollbar, .readme-box::-webkit-scrollbar { width: 8px; }
+  .file-tree::-webkit-scrollbar-track, .readme-box::-webkit-scrollbar-track { background: transparent; }
+  .file-tree::-webkit-scrollbar-thumb, .readme-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  .file-tree::-webkit-scrollbar-thumb:hover, .readme-box::-webkit-scrollbar-thumb:hover { background: var(--muted); }
   .tree-row { display: flex; align-items: center; gap: 6px; padding: 2px 4px; border-radius: 4px; }
   .tree-row:hover { background: var(--surface2); }
   .tree-icon { font-size: 13px; flex-shrink: 0; }
@@ -293,8 +300,9 @@
   }
 
   /* ── impact file select ── */
-  .file-select-row { display: flex; gap: 8px; }
+  .file-select-row { display: flex; gap: 8px; min-width: 0; }
   select {
+    min-width: 0;
     flex: 1;
     background: var(--surface);
     border: 1px solid var(--border);
@@ -339,7 +347,7 @@
 
   <!-- Token notice (shown on rate limit) -->
   <div class="token-notice" id="token-notice">
-    ⚠ GitHub rate limit hit (60 req/hour for unauthenticated). To fix: open <code>frontend/index.html</code>, find <code>GITHUB_TOKEN</code> near the top of the script, and paste your GitHub Personal Access Token there. Or set <code>GITHUB_TOKEN=your_token</code> in the backend environment.
+    ⚠ GitHub rate limit hit (60 req/hour for unauthenticated). To fix: set <code>GITHUB_TOKEN=your_token</code> (a GitHub Personal Access Token) in the backend environment and restart the backend.
   </div>
 
   <!-- Search -->
@@ -396,6 +404,7 @@
       <div class="card">
         <div class="card-title">File structure</div>
         <div class="file-tree" id="file-tree"></div>
+        <p id="tree-note" style="display:none;font-size:11px;color:var(--muted);margin-top:8px"></p>
       </div>
     </div>
 
@@ -405,8 +414,9 @@
         <div class="card-title">Select file to change</div>
         <div class="file-select-row">
           <select id="file-select"></select>
-          <button class="btn" onclick="doImpact()">Run analysis →</button>
+          <button class="btn" id="impact-btn" onclick="doImpact()">Run analysis →</button>
         </div>
+        <p id="impact-note" style="display:none;font-size:11px;color:var(--muted);margin-top:8px"></p>
       </div>
 
       <div class="loading-row" id="impact-loading" style="display:none">
@@ -439,7 +449,7 @@
       <div class="empty-state" id="guide-empty">
         <div class="big">📖</div>
         <p style="margin-bottom:14px">Auto-generate an onboarding guide from the repo's structure and README</p>
-        <button class="btn" onclick="doGuide()">Generate guide →</button>
+        <button class="btn" id="guide-btn" onclick="doGuide()">Generate guide →</button>
       </div>
 
       <div class="loading-row" id="guide-loading" style="display:none">
@@ -460,11 +470,18 @@
 
 <script>
 // ── Config ──────────────────────────────────────────────────────────────────
-const API = 'http://localhost:8000';
+// Override with ?api=http://localhost:8001 when port 8000 is taken (local hosts only)
+const API = (() => {
+  const override = new URLSearchParams(location.search).get('api');
+  return override && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(override)
+    ? override : 'http://localhost:8000';
+})();
 
 // ── State ───────────────────────────────────────────────────────────────────
 let currentRepoUrl = '';
 let currentPyFiles = [];
+let analyzeSeq = 0;
+const TREE_SHOWN = 300;
 
 // ── Utils ───────────────────────────────────────────────────────────────────
 function setUrl(url) {
@@ -493,14 +510,22 @@ function switchTab(name, btn) {
 
 // ── API calls ────────────────────────────────────────────────────────────────
 async function apiFetch(endpoint, body) {
-  const resp = await fetch(API + endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const data = await resp.json();
+  let resp;
+  try {
+    resp = await fetch(API + endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new Error(`Cannot reach the RepoSense backend at ${API}. Is it running? (uvicorn main:app --port 8000)`);
+  }
+  const data = await resp.json().catch(() => ({}));
   if (!resp.ok) {
-    const msg = data.detail || `HTTP ${resp.status}`;
+    const detail = Array.isArray(data.detail)
+      ? data.detail.map(d => d.msg).join('; ')
+      : data.detail;
+    const msg = detail || `HTTP ${resp.status}`;
     if (resp.status === 403 || msg.toLowerCase().includes('rate limit')) {
       document.getElementById('token-notice').style.display = 'block';
     }
@@ -514,7 +539,8 @@ async function doAnalyze() {
   const url = document.getElementById('repo-input').value.trim();
   if (!url) return;
 
-  currentRepoUrl = url;
+  const reqId = ++analyzeSeq;
+  currentRepoUrl = '';
   currentPyFiles = [];
 
   hide('results');
@@ -535,17 +561,22 @@ async function doAnalyze() {
 
   try {
     const data = await apiFetch('/analyze', { repo_url: url });
-    renderAnalyze(data, url);
+    if (reqId !== analyzeSeq) return;
+    currentRepoUrl = url;
+    renderAnalyze(data);
   } catch (e) {
+    if (reqId !== analyzeSeq) return;
     setError('error-box', '⚠ ' + e.message);
     document.getElementById('hero').style.display = '';
   } finally {
-    hide('loading-row');
-    document.getElementById('analyze-btn').disabled = false;
+    if (reqId === analyzeSeq) {
+      hide('loading-row');
+      document.getElementById('analyze-btn').disabled = false;
+    }
   }
 }
 
-function renderAnalyze(data, url) {
+function renderAnalyze(data) {
   // Repo header
   text('rh-name', data.owner + '/' + data.repo);
   if (data.language) {
@@ -569,7 +600,7 @@ function renderAnalyze(data, url) {
   // File tree
   const tree = document.getElementById('file-tree');
   const tagMap = { entry:'badge-entry', critical:'badge-critical', security:'badge-security', test:'badge-test' };
-  tree.innerHTML = data.tree.slice(0, 200).map(f => {
+  tree.innerHTML = data.tree.slice(0, TREE_SHOWN).map(f => {
     const depth = f.path.split('/').length - 1;
     const name  = escHtml(f.path.split('/').pop());
     const isDir = f.type === 'dir';
@@ -583,35 +614,50 @@ function renderAnalyze(data, url) {
     </div>`;
   }).join('');
 
-  // Build Python file list for impact tab
-  currentPyFiles = data.tree
-    .filter(f => f.type === 'file' && f.path.endsWith('.py'))
-    .map(f => f.path);
+  const shown = Math.min(data.tree.length, TREE_SHOWN);
+  if (data.tree_total > shown) {
+    text('tree-note', `Showing first ${shown} of ${data.tree_total.toLocaleString()} entries.`);
+    showBlock('tree-note');
+  } else { hide('tree-note'); }
 
+  // Build Python file list for impact tab (from the full repo, not just the displayed tree)
+  currentPyFiles = data.python_paths || [];
   const sel = document.getElementById('file-select');
-  sel.innerHTML = currentPyFiles.map(p => `<option value="${escHtml(p)}">${escHtml(p)}</option>`).join('');
+  sel.innerHTML = currentPyFiles.length
+    ? currentPyFiles.map(p => `<option value="${escHtml(p)}">${escHtml(p)}</option>`).join('')
+    : '<option value="">No Python files in this repo</option>';
+  sel.disabled = !currentPyFiles.length;
+  document.getElementById('impact-btn').disabled = !currentPyFiles.length;
+  hide('impact-note');
 
+  switchTab('map', document.querySelector('.tab-btn'));
   showBlock('results');
 }
 
 // ── Impact ───────────────────────────────────────────────────────────────────
 async function doImpact() {
   const filePath = document.getElementById('file-select').value;
-  if (!filePath) return;
+  if (!filePath || !currentRepoUrl) return;
 
+  const repoUrl = currentRepoUrl;
+  const btn = document.getElementById('impact-btn');
+  btn.disabled = true;
   hide('impact-results');
   hide('impact-empty');
+  hide('impact-note');
   clearError('impact-error');
   showFlex('impact-loading');
 
   try {
-    const data = await apiFetch('/impact', { repo_url: currentRepoUrl, file_path: filePath });
-    renderImpact(data);
+    const data = await apiFetch('/impact', { repo_url: repoUrl, file_path: filePath });
+    if (repoUrl === currentRepoUrl) renderImpact(data);
   } catch (e) {
+    if (repoUrl !== currentRepoUrl) return;
     setError('impact-error', '⚠ ' + e.message);
     showBlock('impact-empty');
   } finally {
     hide('impact-loading');
+    btn.disabled = !currentPyFiles.length;
   }
 }
 
@@ -642,20 +688,28 @@ function renderImpact(data) {
     `).join('');
   }
 
+  if (data.analyzed_files < data.total_python_files) {
+    text('impact-note', `Import graph built from the ${data.analyzed_files} Python files closest to the selected file (of ${data.total_python_files.toLocaleString()} total).`);
+    showBlock('impact-note');
+  }
+
   hide('impact-empty');
   showBlock('impact-results');
 }
 
 // ── Guide ─────────────────────────────────────────────────────────────────────
 async function doGuide() {
+  if (!currentRepoUrl) return;
+  const repoUrl = currentRepoUrl;
   hide('guide-empty');
   clearError('guide-error');
   showFlex('guide-loading');
 
   try {
-    const data = await apiFetch('/guide', { repo_url: currentRepoUrl });
-    renderGuide(data);
+    const data = await apiFetch('/guide', { repo_url: repoUrl });
+    if (repoUrl === currentRepoUrl) renderGuide(data);
   } catch (e) {
+    if (repoUrl !== currentRepoUrl) return;
     setError('guide-error', '⚠ ' + e.message);
     showBlock('guide-empty');
   } finally {
@@ -669,40 +723,41 @@ function renderGuide(data) {
     <div class="card">
       <div class="guide-section">
         <h3>🏗 Architecture overview</h3>
-        <p>${data.description}</p>
+        <p>${escHtml(data.description)}</p>
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
-          ${data.language ? `<span class="lang-badge">${data.language}</span>` : ''}
+          ${data.language ? `<span class="lang-badge">${escHtml(data.language)}</span>` : ''}
           <span class="lang-badge" style="background:rgba(245,158,11,.15);color:#fcd34d">★ ${data.stars.toLocaleString()}</span>
-          <span class="lang-badge" style="background:rgba(99,102,241,.12);color:#a5b4fc">${data.forks} forks</span>
-          <span class="lang-badge" style="background:rgba(59,130,246,.12);color:#93c5fd">${data.total_python_files} py files</span>
+          <span class="lang-badge" style="background:rgba(99,102,241,.12);color:#a5b4fc">${data.forks.toLocaleString()} forks</span>
+          <span class="lang-badge" style="background:rgba(59,130,246,.12);color:#93c5fd">${data.total_python_files.toLocaleString()} py files</span>
         </div>
       </div>
 
+      ${data.top_directories.length ? `
       <div class="guide-section">
         <h3>📁 Top-level directories</h3>
-        <div>${data.top_directories.map(d => `<span class="dir-pill">${d}/</span>`).join('')}</div>
-      </div>
+        <div>${data.top_directories.map(d => `<span class="dir-pill">${escHtml(d)}/</span>`).join('')}</div>
+      </div>` : ''}
 
       ${data.entry_points.length ? `
       <div class="guide-section">
         <h3>🚀 Entry points — start here</h3>
-        <ul>${data.entry_points.map(e => `<li><code>${e}</code></li>`).join('')}</ul>
+        <ul>${data.entry_points.map(e => `<li><code>${escHtml(e)}</code></li>`).join('')}</ul>
       </div>` : ''}
 
       <div class="guide-section">
         <h3>⚙ Getting started</h3>
         <ol>
-          <li>git clone https://github.com/${data.repo}</li>
-          <li>cd ${data.repo.split('/')[1]}</li>
-          ${data.setup_commands.map(cmd => `<li><code>${cmd}</code></li>`).join('')}
-          ${data.test_command !== 'No tests detected' ? `<li>Run tests: <code>${data.test_command}</code></li>` : ''}
+          <li><code>git clone https://github.com/${escHtml(data.repo)}</code></li>
+          <li><code>cd ${escHtml(data.repo.split('/')[1])}</code></li>
+          ${data.setup_commands.map(cmd => `<li><code>${escHtml(cmd)}</code></li>`).join('')}
+          ${data.test_command !== 'No tests detected' ? `<li>Run tests: <code>${escHtml(data.test_command)}</code></li>` : ''}
         </ol>
       </div>
 
       <div class="guide-section">
         <h3>⚠ Key things to know</h3>
         <ul>
-          <li>This repo has <strong>${data.total_python_files}</strong> Python files — start with the entry points above</li>
+          <li>This repo has <strong>${data.total_python_files.toLocaleString()}</strong> Python files — start with the entry points above</li>
           <li>Run tests before making any changes to establish a working baseline</li>
           <li>Check <code>pyproject.toml</code> or <code>setup.cfg</code> for project-level configuration</li>
           ${data.test_command !== 'No tests detected' ? '<li>Test suite is present — run it frequently to catch regressions</li>' : '<li>No test suite detected — add tests before contributing</li>'}
@@ -720,7 +775,7 @@ function renderGuide(data) {
 }
 
 function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 // ── Enter key ─────────────────────────────────────────────────────────────────

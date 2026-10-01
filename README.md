@@ -39,6 +39,8 @@ xdg-open frontend/index.html
 
 Or drag `frontend/index.html` into any browser tab.
 
+> Port 8000 busy? Run the backend on another port and open `frontend/index.html?api=http://localhost:8001`.
+
 > **Windows one-click:** double-click `start.bat`  
 > **Mac/Linux one-click:** run `./start.sh`
 
@@ -75,7 +77,10 @@ uvicorn main:app --reload --port 8000
 reposense/
 ├── backend/
 │   ├── main.py           # FastAPI — /analyze, /impact, /guide endpoints
-│   └── requirements.txt  # fastapi, uvicorn, httpx, pydantic
+│   ├── import_graph.py   # AST import resolution + BFS blast radius
+│   ├── test_reposense.py # pytest suite (pip install -r requirements-dev.txt && pytest)
+│   ├── requirements.txt  # fastapi, uvicorn, httpx, pydantic
+│   └── requirements-dev.txt
 ├── frontend/
 │   └── index.html        # Complete UI — single file, no build needed
 ├── bob-session-export.json
@@ -89,9 +94,9 @@ reposense/
 ## 🛠 How impact analysis works
 
 1. Fetch the repo's **default branch** tree via GitHub API
-2. Filter Python files (`.py`), skip files > 60 KB, cap at 50 files to stay within rate limits
-3. Parse each with Python's `ast` module — extract `import` and `from X import` statements
-4. Build a directed graph: `file → [files it imports]`
+2. Pick up to 400 Python files (skipping files > 200 KB), nearest to the changed file first, and download them from `raw.githubusercontent.com` (doesn't count against the API rate limit)
+3. Parse each with Python's `ast` module — extract `import`, `from X import Y` and relative (`from . import x`) statements
+4. Resolve imports to repo files (packages, `src/` layouts, sibling script imports; stdlib names are ignored) and build a directed graph: `file → [files it imports]`
 5. Reverse it: `file → [files that import IT]`
 6. BFS from the changed file through the reverse graph (O(1) dequeue via `collections.deque`)
 7. Score each affected file by hop distance (1 hop = direct importer → High risk)
@@ -117,6 +122,14 @@ POST /guide      { "repo_url": "https://github.com/owner/repo" }
 | 2 | `backend/main.py` | `bfs()` used `list.pop(0)` — O(n) per dequeue, quadratic slowdown on large repos | Replaced with `collections.deque` + `popleft()` for O(1) performance |
 | 3 | `frontend/index.html` | File paths and tag names injected raw into `innerHTML` — XSS risk | All user-supplied values now escaped via `escHtml()` before injection |
 | 4 | `frontend/index.html` | `escHtml()` didn't escape `"` — quotes in paths could break HTML attributes | Added `"` → `&quot;` and coerced input with `String(s)` |
+| 5 | `backend/main.py` | Renamed repos (e.g. `tiangolo/fastapi` → `fastapi/fastapi`) return a 301 that wasn't followed — app showed an empty repo | Follow redirects; use the canonical `full_name` |
+| 6 | `backend/main.py` | Impact only fetched the first 50 `.py` files — the selected file often wasn't even included | Fetch up to 400 files nearest the target, always including it |
+| 7 | `backend/main.py` | Package (`__init__.py`) and relative imports never resolved; stdlib names matched repo files | New path-space resolver in `import_graph.py` |
+| 8 | `backend/main.py` | Each file cost one API call — one impact run exhausted the 60/hr limit | Download via `raw.githubusercontent.com`; cache repo tree for 10 min |
+| 9 | `frontend/index.html` | Impact dropdown built from first 300 tree entries — large repos showed few/no Python files | Backend returns all Python paths |
+| 10 | `frontend/index.html` | Onboarding guide inserted repo description / dirs / commands unescaped (XSS) | Escaped all values |
+| 11 | both | Unhandled GitHub errors → 500; backend down → "Failed to fetch"; `..` accepted as repo name | Clear error messages; strict owner/repo validation |
+| 12 | `backend/requirements.txt` | Exact pins (pydantic 2.7.1) fail to install on newer Python | Compatible version ranges |
 
 ---
 
